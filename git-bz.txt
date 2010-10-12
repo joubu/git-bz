@@ -28,7 +28,7 @@ command line without having to go to your web browser.
 Authentication for git-bz is done by reading the cookies for the
 Bugzilla host from your web browser. In order to do this, git-bz needs
 to know how to access the cookies for your web browser; git-bz
-currently is able to do this for Firefox, Epiphany, and Chromium on
+currently is able to do this for Firefox, Epiphany, Galeon and Chromium on
 Linux.
 
 EXAMPLE SESSION
@@ -254,7 +254,7 @@ AUTHENTICATION
 --------------
 In order to use git-bz you need to already be logged into the bug tracker
 in your web browser, and git-bz reads your browser cookie. Currently only
-Firefox 3 and Epiphany are supported, and only on Linux. Patches to
+Firefox 3, Epiphany and Galeon are supported, and only on Linux. Patches to
 add more support and to allow configuring username/password directly
 per bug tracker accepted.
 

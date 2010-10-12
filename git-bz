@@ -562,6 +562,13 @@ def get_bugzilla_cookies_ff3(host):
 
     return get_cookies_from_sqlite_xulrunner(host, cookies_sqlite, "Firefox")
 
+def get_bugzilla_cookies_galeon(host):
+    cookies_sqlite = os.path.expanduser('~/.galeon/mozilla/galeon/cookies.sqlite')
+    if not os.path.exists(cookies_sqlite):
+        raise CookieError("%s doesn't exist." % cookies_sqlite)
+
+    return get_cookies_from_sqlite_xulrunner(host, cookies_sqlite, "Galeon")
+
 def get_bugzilla_cookies_epy(host):
     # epiphany-webkit migrated the cookie db to a different location, but the
     # format is the same
@@ -598,6 +605,7 @@ def get_bugzilla_cookies_google_chrome(host):
 
 browsers = { 'firefox3'     : get_bugzilla_cookies_ff3,
              'epiphany'     : get_bugzilla_cookies_epy,
+             'galeon'       : get_bugzilla_cookies_galeon,
              'chromium'     : get_bugzilla_cookies_chromium,
              'google-chrome': get_bugzilla_cookies_google_chrome }
 
