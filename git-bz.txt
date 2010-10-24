@@ -23,7 +23,7 @@ DESCRIPTION
 git-bz is a tool for integrating the Git command line with the
 Bugzilla bug-tracking system. Operations such as attaching patches to bugs,
 applying patches in bugs to your current tree, and closing bugs once
-you've pushed the fixes publically can be done completely from the
+you've pushed the fixes publicly can be done completely from the
 command line without having to go to your web browser.
 
 Authentication for git-bz is done by reading the cookies for the
@@ -112,7 +112,7 @@ add-url
 
 For each specified commit, rewrite the commit message to add a
 reference to the given bug. You should only do this if you haven't
-already pushed the commit publically. You won't need this very often,
+already pushed the commit publicly. You won't need this very often,
 since 'git bz file' and 'git bz attach' do this automatically. It
 might be useful if you want to record the bug information but don't
 want to attach it immediately.
