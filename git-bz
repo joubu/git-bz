@@ -839,7 +839,10 @@ class BugServer(object):
 
     def send_request(self, method, url, data=None, headers={}):
         headers = dict(headers)
-        headers['Cookie'] = self.get_cookie_string()
+        cookies = self.get_cookie_string()
+        if isinstance(cookies, unicode):
+            cookies = cookies.encode('UTF-8')
+        headers['Cookie'] = cookies
         headers['User-Agent'] = "git-bz"
         if self.auth_user and self.auth_password:
             headers['Authorization'] = http_auth_header(self.auth_user, self.auth_password)
@@ -958,7 +961,10 @@ class BugServer(object):
 class CookieTransportMixin(object):
     def send_request(self, connection, *args):
         xmlrpclib.Transport.send_request(self, connection, *args)
-        connection.putheader("Cookie", self.server.get_cookie_string())
+        cookie = self.server.get_cookie_string()
+        if isinstance(cookie, unicode):
+            cookie = cookie.encode('UTF-8')
+        connection.putheader("Cookie", cookie)
         connection.putheader("Authorization", http_auth_header(self.server.auth_user, self.server.auth_password))
 
 class BugTransport(CookieTransportMixin, xmlrpclib.Transport):
@@ -1152,7 +1158,7 @@ class Bug(object):
             # name 'obsolete' for each item in the list
             fields['obsolete'] = map(str, obsoletes)
 
-        files = { 'data': (filename, 'text/plain', data) }
+        files = { 'data': (filename, 'text/plain; charset=UTF-8', data) }
 
         response = self.server.send_post("/attachment.cgi", fields, files)
         response_data = response.read()
