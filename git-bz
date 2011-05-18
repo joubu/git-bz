@@ -349,13 +349,13 @@ def tracker_get_path(tracker):
 
 def tracker_get_auth_user(tracker):
     config = get_config(tracker)
-    if 'path' in config:
+    if 'auth-user' in config:
         return config['auth-user']
     return None
 
 def tracker_get_auth_password(tracker):
     config = get_config(tracker)
-    if 'path' in config:
+    if 'auth-password' in config:
         return config['auth-password']
     return None
 
