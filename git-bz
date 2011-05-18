@@ -395,7 +395,7 @@ def merge_default_fields_from_dict(default_fields, d):
 def get_default_fields(tracker):
     config = get_config(tracker)
 
-    default_fields = {}
+    default_fields = x{}
 
     merge_default_fields_from_dict(default_fields, config)
 
