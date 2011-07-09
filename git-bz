@@ -708,19 +708,7 @@ def make_filename(description):
     return filename
 
 def edit_file(filename):
-    editor = None
-    if 'GIT_EDITOR' in os.environ:
-        editor = os.environ['GIT_EDITOR']
-    if editor == None:
-        try:
-            editor = git.config('core.editor', get=True)
-        except CalledProcessError:
-            pass
-    if editor == None and 'EDITOR' in os.environ:
-        editor = os.environ['EDITOR']
-    if editor == None:
-        editor = "vi"
-
+    editor = git.var("GIT_EDITOR")
     process = Popen(editor + " " + filename, shell=True)
     process.wait()
     if process.returncode != 0:
