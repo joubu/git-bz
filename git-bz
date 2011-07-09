@@ -1552,7 +1552,7 @@ def do_apply(bug_reference):
         f.close()
 
         try:
-            process = git.am(filename, _interactive=True)
+            process = git.am("-3", filename, _interactive=True)
         except CalledProcessError:
             print "Patch left in %s" % filename
             break
