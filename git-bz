@@ -82,7 +82,7 @@ import base64
 import cPickle as pickle
 from ConfigParser import RawConfigParser, NoOptionError
 import httplib
-from optparse import OptionParser
+import optparse
 import os
 try:
     from sqlite3 import dbapi2 as sqlite
@@ -1538,56 +1538,105 @@ def do_add_url(bug_reference, commit_or_revision_range):
     print
     add_url(bug, commits)
 
-def do_apply(bug_reference):
-    bug = Bug.load(BugHandle.parse_or_die(bug_reference),
+resolvemsg = '''When you have resolved this problem run "git bz apply --continue".
+If you would prefer to skip this patch, instead run "git bz apply --skip".
+To restore the original branch and stop patching run "git bz apply --abort".'''
+
+def do_apply(*args):
+    git_dir = git.rev_parse(git_dir=True)
+    resuming = global_options.resolved or global_options.skip or global_options.abort
+
+    if len(args) == 0:
+        if not resuming:
+            die(parser.get_usage())
+
+        if global_options.resolved:
+            arg = "--resolved"
+        elif global_options.skip:
+            arg = "--skip"
+        elif global_options.abort:
+            arg = "--abort"
+
+        try:
+            f = open(git_dir + "/rebase-apply/git-bz", "r")
+            lines = f.read().rstrip().split('\n')
+            bug_ref = lines[0]
+            orig_head = lines[1]
+            patch_ids = map(int, lines[2:])
+            f.close()
+        except:
+            die("Not inside a 'git bz apply' operation")
+
+        try:
+            process = git.am(arg, resolvemsg=resolvemsg, _interactive=True)
+        except CalledProcessError:
+            sys.exit(1)
+
+        if global_options.abort:
+            sys.exit(0)
+
+    else:
+        if resuming:
+            die(parser.get_usage())
+
+        bug_ref = args[0]
+        orig_head = git.rev_parse("HEAD")
+
+    bug = Bug.load(BugHandle.parse_or_die(bug_ref),
                    attachmentdata=True)
     if len(bug.patches) == 0:
         die("No patches on bug %d" % bug.id)
 
     patches = []
     patches_by_id = {}
-
-    print "Bug %d - %s" % (bug.id, bug.short_desc)
-    print
-
     for patch in bug.patches:
-        if patch.status == 'committed' or patch.status == 'rejected':
-            print "%d (skipping, %s) - %s" % (patch.attach_id, patch.status, patch.description)
-        else:
-            patches.append(patch)
+        patches_by_id[patch.attach_id] = patch
 
-    for patch in patches:
-        print "%d - %s" % (patch.attach_id, patch.description)
-    print
-    opt = prompt_multi("Apply? [(y)es, (n)o, (i)nteractive]", ["y", "n", "i"])
+    if resuming:
+        for pid in patch_ids:
+            patches.append(patches_by_id[pid])
+    else:
+        print "Bug %d - %s" % (bug.id, bug.short_desc)
+        print
 
-    if opt == "n":
-        return
-    elif opt == "i":
-        template = StringIO()
-        template.write("# Bug %d - %s\n\n" % (bug.id, bug.short_desc))
         for patch in bug.patches:
-            patches_by_id[patch.attach_id] = patch
             if patch.status == 'committed' or patch.status == 'rejected':
-                template.write("#%d - %s (%s)\n" % (patch.attach_id, patch.description, patch.status))
+                print "%d (skipping, %s) - %s" % (patch.attach_id, patch.status, patch.description)
             else:
-                template.write("%d - %s\n" % (patch.attach_id, patch.description))
-        template.write("\n")
-        template.write("""# Uncommented patches will be applied in the order they appear.
+                patches.append(patch)
+
+        for patch in patches:
+            print "%d - %s" % (patch.attach_id, patch.description)
+        print
+        opt = prompt_multi("Apply? [(y)es, (n)o, (i)nteractive]", ["y", "n", "i"])
+
+        if opt == "n":
+            return
+        elif opt == "i":
+            template = StringIO()
+            template.write("# Bug %d - %s\n\n" % (bug.id, bug.short_desc))
+            for patch in bug.patches:
+                patches_by_id[patch.attach_id] = patch
+                if patch.status == 'committed' or patch.status == 'rejected':
+                    template.write("#%d - %s (%s)\n" % (patch.attach_id, patch.description, patch.status))
+                else:
+                    template.write("%d - %s\n" % (patch.attach_id, patch.description))
+            template.write("\n")
+            template.write("""# Uncommented patches will be applied in the order they appear.
 # Lines starting with '#' will be ignored.  Delete everything to abort.
 """)
 
-        lines = edit_template(template.getvalue())
-        patches = []
-        for line in lines:
-            match = re.match('^(\d+)', line)
-            if match:
-                pid = int(match.group(1))
-                if not patches_by_id.has_key(pid):
-                    die("Unknown attachment id " + pid)
-                patches.append(patches_by_id[pid])
+            lines = edit_template(template.getvalue())
+            patches = []
+            for line in lines:
+                match = re.match('^(\d+)', line)
+                if match:
+                    pid = int(match.group(1))
+                    if not patches_by_id.has_key(pid):
+                        die("Unknown attachment id " + pid)
+                    patches.append(patches_by_id[pid])
 
-    if len(patches) == 0:
+    if len(patches) == 0 and not resuming:
         die("No patches to apply, aborting")
 
     for patch in patches:
@@ -1597,17 +1646,30 @@ def do_apply(bug_reference):
         f.close()
 
         try:
-            process = git.am("-3", filename, _interactive=True)
+            process = git.am("-3", filename, resolvemsg=resolvemsg,
+                             _interactive=True)
         except CalledProcessError:
+            if os.access(git_dir + "/rebase-apply", os.F_OK):
+                # git-am saved its state for an abort or continue,
+                # so save our state too
+                f = open(git_dir + "/rebase-apply/git-bz", "w")
+                f.write("%s\n" % bug_ref)
+                f.write("%s\n" % orig_head)
+                for i in range(patches.index(patch) + 1, len(patches)):
+                    f.write("%s\n" % patches[i].attach_id)
+                f.close()
             print "Patch left in %s" % filename
-            break
+            return
 
         os.remove(filename)
 
-        if global_options.add_url:
-            # Slightly hacky, would be better to just commit right the first time
-            commits = rev_list_commits("HEAD^!")
-            add_url(bug, commits)
+    if global_options.add_url:
+        # Slightly hacky. We could add the URLs as we go by using
+        # git-mailinfo to parse each patch, calling
+        # add_url_to_subject_body(), and then reassembling. That would
+        # be much more complicated though.
+        commits = rev_list_commits(orig_head + "..")
+        add_url(bug, commits)
 
 def strip_bug_url(bug, commit_body):
     # Strip off the trailing bug URLs we add with -u; we do this before
@@ -2219,7 +2281,7 @@ else:
 
 sys.argv[1:2] = []
 
-parser = OptionParser()
+parser = optparse.OptionParser()
 parser.add_option("-b", "--bugzilla", metavar="<host or alias>",
                   help="bug tracker to use")
 
@@ -2242,8 +2304,19 @@ if command == 'add-url':
     min_args = max_args = 2
 elif command == 'apply':
     parser.set_usage("git bz apply [options] <bug reference>");
+    # git am accepts either --continue or --resolved, so we do too. Call
+    # it "resolved" in the options object, since "continue" is reserved
+    parser.add_option("", "--continue", action="store_true", dest="resolved",
+                      help="continue applying a patch set after a failure")
+    parser.add_option("", "--resolved", action="store_true",
+                      help=optparse.SUPPRESS_HELP)
+    parser.add_option("", "--skip", action="store_true",
+                      help="skip the current patch after a failure")
+    parser.add_option("", "--abort", action="store_true",
+                      help="abort the current patch set and revert to original state")
     add_add_url_options()
-    min_args = max_args = 1
+    min_args = 0
+    max_args = 1
 elif command == 'attach':
     parser.set_usage("git bz attach [options] [<bug reference>] (<commit> | <revision range>)");
     add_add_url_options()

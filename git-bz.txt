@@ -10,6 +10,7 @@ SYNOPSIS
 [verse]
 'git bz add-url' <bug reference> (<commit> | <revision range>)
 'git bz apply' [-n | --no-add-url] <bug reference>
+'git bz apply' (--continue | --skip | --abort)
 'git bz attach' [-n | --no-add-url] [-e |--edit] [<bug reference>] (<commit> | <revision range>)
 'git bz components' [<product>]
 'git bz edit' (<bug reference> | <commit> | <revision range>)
@@ -132,7 +133,9 @@ section <<add-url-method, ``Add URL Method''>> below for how to change this.
 apply
 ~~~~~
 
+[verse]
 'git bz apply' [-n | --no-add-url] <bug reference>
+'git bz apply' (--continue | --skip | --abort)
 
 Lists all "pending" patches on the specified bug (ie, the patches that
 are not obsolete, committed, or rejected), and then prompts whether to
@@ -140,7 +143,14 @@ apply them. In addition to simply accepting or rejecting the list of
 patches, you can also type "i" to interactively choose which patches
 to apply, and in what order, as with 'git rebase -i'. If any patches
 are selected, it runs 'git am' on each one to apply it to the current
-branch. Aborts if 'git am' fails, to allow cleaning up conflicts.
+branch.
+
+If a 'git am' operation fails, 'git bz apply' will save its state and
+then exit, at which point you can attempt to apply the patch by hand
+and then resume with 'git bz apply --continue'; skip this patch but
+continue applying the remaining patches with 'git bz apply --skip'; or
+abort the operation and return to the original tree state with 'git bz
+apply --abort'.
 
 Examples:
 
