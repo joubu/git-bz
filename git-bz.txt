@@ -134,10 +134,13 @@ apply
 
 'git bz apply' [-n | --no-add-url] <bug reference>
 
-For each patch attachment (except for obsolete patches) of the specified
-bug, prompts whether to apply. If prompt is agreed to runs 'git am' on
-the patch to apply it to the current branch. Aborts if 'git am' fails to
-allow cleaning up conflicts.
+Lists all "pending" patches on the specified bug (ie, the patches that
+are not obsolete, committed, or rejected), and then prompts whether to
+apply them. In addition to simply accepting or rejecting the list of
+patches, you can also type "i" to interactively choose which patches
+to apply, and in what order, as with 'git rebase -i'. If any patches
+are selected, it runs 'git am' on each one to apply it to the current
+branch. Aborts if 'git am' fails, to allow cleaning up conflicts.
 
 Examples:
 

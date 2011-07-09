@@ -835,6 +835,16 @@ def prompt(message):
         elif line == 'n' or line == 'N':
             return False
 
+def prompt_multi(message, options):
+    while True:
+        # Using print here could result in Python adding a stray space
+        # before the next print
+        sys.stdout.write(message + " ")
+        line = sys.stdin.readline()
+        opt = line[0].lower()
+        if opt in options:
+            return opt
+
 def die(message):
     print >>sys.stderr, message
     sys.exit(1)
@@ -1531,21 +1541,56 @@ def do_add_url(bug_reference, commit_or_revision_range):
 def do_apply(bug_reference):
     bug = Bug.load(BugHandle.parse_or_die(bug_reference),
                    attachmentdata=True)
+    if len(bug.patches) == 0:
+        die("No patches on bug %d" % bug.id)
+
+    patches = []
+    patches_by_id = {}
 
     print "Bug %d - %s" % (bug.id, bug.short_desc)
     print
 
     for patch in bug.patches:
         if patch.status == 'committed' or patch.status == 'rejected':
-            print "Skipping, %s: %s" % (patch.status, patch.description)
-            continue
+            print "%d (skipping, %s) - %s" % (patch.attach_id, patch.status, patch.description)
+        else:
+            patches.append(patch)
 
-        print patch.description
-        if not prompt("Apply?"):
-            continue
+    for patch in patches:
+        print "%d - %s" % (patch.attach_id, patch.description)
+    print
+    opt = prompt_multi("Apply? [(y)es, (n)o, (i)nteractive]", ["y", "n", "i"])
 
-        print
+    if opt == "n":
+        return
+    elif opt == "i":
+        template = StringIO()
+        template.write("# Bug %d - %s\n\n" % (bug.id, bug.short_desc))
+        for patch in bug.patches:
+            patches_by_id[patch.attach_id] = patch
+            if patch.status == 'committed' or patch.status == 'rejected':
+                template.write("#%d - %s (%s)\n" % (patch.attach_id, patch.description, patch.status))
+            else:
+                template.write("%d - %s\n" % (patch.attach_id, patch.description))
+        template.write("\n")
+        template.write("""# Uncommented patches will be applied in the order they appear.
+# Lines starting with '#' will be ignored.  Delete everything to abort.
+""")
 
+        lines = edit_template(template.getvalue())
+        patches = []
+        for line in lines:
+            match = re.match('^(\d+)', line)
+            if match:
+                pid = int(match.group(1))
+                if not patches_by_id.has_key(pid):
+                    die("Unknown attachment id " + pid)
+                patches.append(patches_by_id[pid])
+
+    if len(patches) == 0:
+        die("No patches to apply, aborting")
+
+    for patch in patches:
         handle, filename = tempfile.mkstemp(".patch", make_filename(patch.description) + "-")
         f = os.fdopen(handle, "w")
         f.write(patch.data)
