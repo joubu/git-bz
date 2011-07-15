@@ -2030,6 +2030,38 @@ def do_push(*args):
             bug = Bug.load(handle)
             edit_bug(bug, commits)
 
+def do_components(*args):
+    tracker = get_tracker()
+    host = resolve_host_alias(tracker)
+    https = tracker_uses_https(tracker)
+    path = tracker_get_path(tracker)
+    auth_user = tracker_get_auth_user(tracker)
+    auth_password = tracker_get_auth_password(tracker)
+
+    server = get_bug_server(host, path, https, auth_user, auth_password)
+
+    if len(args) == 1:
+        product = args[0]
+    else:
+        product = get_default_product()
+        if not product:
+            die("<product> not specified and no default product is configured" + PRODUCT_COMPONENT_HELP)
+
+    try:
+        response = server.get_xmlrpc_proxy().Product.get({ 'names': product })
+    except xmlrpclib.Fault, e:
+        die(e.faultString)
+    except xmlrpclib.ProtocolError, e:
+        die("Unable to retrieve components: %s" % e.errmsg)
+
+    products = response['products']
+    if len(products) == 0:
+        die("No such product '%s' on %s." % (product, host))
+
+    product = response['products'][0]
+    for component in product['components']:
+        print "%s" % component['name']
+
 ################################################################################
 
 if len(sys.argv) > 1:
@@ -2070,6 +2102,10 @@ elif command == 'attach':
     add_edit_option()
     min_args = 1
     max_args = 2
+elif command == 'components':
+    parser.set_usage("git bz components [options] [<product>]");
+    min_args = 0
+    max_args = 1
 elif command == 'edit':
     parser.set_usage("git bz edit [options] (<bug reference> | <commit> | <revision range>)");
     parser.add_option("", "--pushed", action="store_true",
@@ -2091,7 +2127,7 @@ elif command == 'push':
     min_args = 0
     max_args = 1000 # no max
 else:
-    print >>sys.stderr, "Usage: git bz [add-url|apply|attach|edit|file|push] [options]"
+    print >>sys.stderr, "Usage: git bz [add-url|apply|attach|components|edit|file|push] [options]"
     sys.exit(1)
 
 global_options, args = parser.parse_args()
@@ -2109,6 +2145,8 @@ elif command == 'apply':
     do_apply(*args)
 elif command == 'attach':
     do_attach(*args)
+elif command == 'components':
+    do_components(*args)
 elif command == 'edit':
     if global_options.pushed:
         exit

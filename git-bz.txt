@@ -11,6 +11,7 @@ SYNOPSIS
 'git bz add-url' <bug reference> (<commit> | <revision range>)
 'git bz apply' [-n | --no-add-url] <bug reference>
 'git bz attach' [-n | --no-add-url] [-e |--edit] [<bug reference>] (<commit> | <revision range>)
+'git bz components' [<product>]
 'git bz edit' (<bug reference> | <commit> | <revision range>)
 'git bz edit' (--pushed | --fix <bug reference) (<commit> | <revision range>)
 'git bz file' [-n | --no-add-url] [[<product>]/<component>] (<commit> | <revision range>)
@@ -179,6 +180,14 @@ git bz attach bugzilla.gnome.org:1234 HEAD
 # Attach everything starting at an old commit
 git bz attach bugzilla.gnome.org:1234 b50ea9bd^..
 ----------------------------------------
+
+components
+~~~~~~~~~~
+
+'git bz components' [<product>]
+
+Prints out the list of components for the given product (or the
+default product if none is given on the command line).
 
 edit
 ~~~~
