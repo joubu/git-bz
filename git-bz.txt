@@ -143,7 +143,9 @@ apply them. In addition to simply accepting or rejecting the list of
 patches, you can also type "i" to interactively choose which patches
 to apply, and in what order, as with 'git rebase -i'. If any patches
 are selected, it runs 'git am' on each one to apply it to the current
-branch.
+branch. (If the bug contains patches in the form of plain diffs, 'git
+bz apply' will create a commit based on the other patch metadata, and
+prompt you for a commit message.)
 
 If a 'git am' operation fails, 'git bz apply' will save its state and
 then exit, at which point you can attempt to apply the patch by hand

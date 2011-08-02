@@ -1152,6 +1152,7 @@ class Bug(object):
                 # the attachment
                 patch.description = attachment.find("desc").text
                 patch.date = attachment.find("date").text
+                patch.attacher = attachment.find("attacher").text
                 status = attachment.find("status")
                 patch.status = None if status is None else status.text
                 patch.filename = attachment.find("filename").text
@@ -1562,7 +1563,8 @@ def do_apply(*args):
             lines = f.read().rstrip().split('\n')
             bug_ref = lines[0]
             orig_head = lines[1]
-            patch_ids = map(int, lines[2:])
+            need_amend = lines[2] == "True"
+            patch_ids = map(int, lines[3:])
             f.close()
         except:
             die("Not inside a 'git bz apply' operation")
@@ -1574,6 +1576,12 @@ def do_apply(*args):
 
         if global_options.abort:
             sys.exit(0)
+
+        if need_amend:
+            try:
+                git.commit(amend=True)
+            except CalledProcessError:
+                print >>sys.stderr, "Warning: left dummy commit message"
 
     else:
         if resuming:
@@ -1640,6 +1648,21 @@ def do_apply(*args):
         die("No patches to apply, aborting")
 
     for patch in patches:
+        if re.search(r'(^|\n)From ', patch.data) is None:
+            # Plain diff... rewrite it into something git-am will accept
+            users = bug.server.get_xmlrpc_proxy().User.get({ 'names': [patch.attacher] })['users']
+            name = users[0]['real_name']
+            email = users[0]['email']
+            headers = """From xxx
+From: %s <%s>
+Date: %s
+Subject: %s
+""" % (name, email, patch.date, patch.description)
+            patch.data = headers + "\n\nFIXME: need commit message\n---\n" + patch.data
+            need_amend = True
+        else:
+            need_amend = False
+
         handle, filename = tempfile.mkstemp(".patch", make_filename(patch.description) + "-")
         f = os.fdopen(handle, "w")
         f.write(patch.data)
@@ -1655,6 +1678,7 @@ def do_apply(*args):
                 f = open(git_dir + "/rebase-apply/git-bz", "w")
                 f.write("%s\n" % bug_ref)
                 f.write("%s\n" % orig_head)
+                f.write("%r\n" % need_amend)
                 for i in range(patches.index(patch) + 1, len(patches)):
                     f.write("%s\n" % patches[i].attach_id)
                 f.close()
@@ -1662,6 +1686,12 @@ def do_apply(*args):
             return
 
         os.remove(filename)
+
+        if need_amend:
+            try:
+                git.commit(amend=True)
+            except CalledProcessError:
+                print >>sys.stderr, "Warning: left dummy commit message"
 
     if global_options.add_url:
         # Slightly hacky. We could add the URLs as we go by using
