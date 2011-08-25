@@ -434,16 +434,28 @@ class BugHandle:
             if not password:
                 password = tracker_get_auth_password(parseresult.hostname)
 
+            bugid = None
+
             # strip off everything after the last '/', so '/bugzilla/show_bug.cgi'
             # will simply become '/bugzilla'
             base_path = parseresult.path[:parseresult.path.rfind('/')]
-            m = re.match("id=([^&]+)", parseresult.query)
 
+            # Some bugzilla instances support a nice short bug link like:
+            # https://bugzilla.gnome.org/12345
+            m = re.match(r'/([0-9]+)$', parseresult.path)
             if m:
+                bugid = m.group(1)
+            else:
+                m = re.match("id=([^&]+)", parseresult.query)
+
+                if m:
+                    bugid = m.group(1)
+
+            if bugid is not None:
                 return BugHandle(host=parseresult.hostname,
                                  path=base_path,
                                  https=parseresult.scheme=="https",
-                                 id=m.group(1),
+                                 id=bugid,
                                  auth_user=user,
                                  auth_password=password)
 
