@@ -735,7 +735,7 @@ def edit_template(template):
 
     f = open(filename, "r")
     lines = filter(lambda x: not x.startswith("#"), f.readlines())
-    f.close
+    f.close()
 
     return lines
 
