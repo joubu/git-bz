@@ -80,6 +80,7 @@ import tempfile
 import time
 import traceback
 import xmlrpclib
+import urllib
 import urlparse
 from xml.etree.cElementTree import ElementTree
 import base64
@@ -926,6 +927,46 @@ class BugServer(object):
             self._xmlrpc_proxy = xmlrpclib.ServerProxy(uri, transport)
 
         return self._xmlrpc_proxy
+
+    def _product_id(self, product_name):
+        # This way works with newer bugzilla; older Bugzilla doesn't support names:
+        try:
+            response = self.get_xmlrpc_proxy().Product.get({ 'names': product_name, 'include_fields': ['id', 'name'] })
+            products = response['products']
+            if len(products) > 0:
+                return products[0]['id']
+        except xmlrpclib.Fault, e:
+            pass
+        except xmlrpclib.ProtocolError, e:
+            pass
+
+        # This should work with any bugzilla that supports xmlrpc, but will be slow
+        print >>sys.stderr, "Searching for product ID ...",
+        try:
+            response = self.get_xmlrpc_proxy().Product.get_accessible_products({})
+            ids = response['ids']
+            response = self.get_xmlrpc_proxy().Product.get_products({ 'ids': ids, 'include_fields': ['id', 'name']})
+            for p in response['products']:
+                if p['name'] == product_name:
+                    print >>sys.stderr, "found it"
+                    return p['id']
+        except xmlrpclib.Fault, e:
+            pass
+        except xmlrpclib.ProtocolError, e:
+            pass
+
+        print >>sys.stderr, "failed"
+        return None
+
+    def product_id(self, product_name):
+        key = 'product_id_' + urllib.quote(product_name)
+        try:
+            return cache.get(self.host, key)
+        except IndexError:
+            value = self._product_id(product_name)
+            if value != None:
+                cache.set(self.host, key, value)
+            return value
 
     # Query the server for the legal values of the given field; returns an
     # array, or None if the query failed
@@ -2047,20 +2088,19 @@ def do_components(*args):
         if not product:
             die("<product> not specified and no default product is configured" + PRODUCT_COMPONENT_HELP)
 
+    product_id = server.product_id(product)
+    if product_id is None:
+        die("No such product " + product)
+
     try:
-        response = server.get_xmlrpc_proxy().Product.get({ 'names': product })
+        response = server.get_xmlrpc_proxy().Bug.legal_values({'product_id': product_id, 'field': 'component'})
+        components = response['values']
+        for component in components:
+            print component
     except xmlrpclib.Fault, e:
         die(e.faultString)
     except xmlrpclib.ProtocolError, e:
         die("Unable to retrieve components: %s" % e.errmsg)
-
-    products = response['products']
-    if len(products) == 0:
-        die("No such product '%s' on %s." % (product, host))
-
-    product = response['products'][0]
-    for component in product['components']:
-        print "%s" % component['name']
 
 ################################################################################
 
