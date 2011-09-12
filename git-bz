@@ -1965,6 +1965,17 @@ def do_file(*args):
 
     commits = get_commits(commit_or_revision_range)
 
+    bug_references = [c for c in extract_and_collate_bugs(commits)]
+    if len(bug_references) > 0:
+        print ("Found existing bug reference%s in commit message%s:" %
+               ("" if len(bug_references) == 1 else "s",
+                "" if len(commits) == 1 else "s"))
+        for reference, _ in bug_references:
+            print " ", reference.get_url()
+        if not prompt("File anyway?"):
+            print "Aborting"
+            sys.exit(0)
+
     if global_options.add_url:
         check_add_url(commits, is_add_url=False)
 
