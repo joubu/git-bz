@@ -1178,18 +1178,6 @@ class Bug(object):
         if error != None:
             die ("Failed to retrieve bug information: %s" % error)
 
-        # Bugzilla now requires a separate token from the attachment creation
-        # page to create an attachment. There doesn't appear to be an XML
-        # interface to it, so we scrape away.
-        attachment_url = "/attachment.cgi?bugid=" + id + "&action=enter"
-        attachment_response = self.server.send_request("GET", attachment_url)
-        self.attachment_token = None
-        if response.status == 200:
-          attachment_match = re.search(r'name="token" value="([^"]+)',
-                                       attachment_response.read())
-          if attachment_match:
-            self.attachment_token = attachment_match.group(1)
-
         self.id = int(bug.find("bug_id").text)
         self.short_desc = bug.find("short_desc").text
         self.bug_status = bug.find("bug_status").text
@@ -1224,6 +1212,22 @@ class Bug(object):
                     patch.data = None
 
                 self.patches.append(patch)
+
+    def get_attachment_token(self):
+
+        # Bugzilla now requires a separate token from the attachment creation
+        # page to create an attachment. There doesn't appear to be an XML
+        # interface to it, so we scrape away.
+        url = "/attachment.cgi?bugid=" + str(self.id) + "&action=enter"
+        response = self.server.send_request("GET", url)
+        if response.status != 200:
+          return None
+
+        match = re.search(r'name="token" value="([^"]+)',
+                                     response.read())
+        if not match:
+          return None
+        return  match.group(1)
 
     def _create_via_xmlrpc(self, product, component, short_desc, comment, default_fields):
         params = dict()
@@ -1300,8 +1304,9 @@ class Bug(object):
     def create_patch(self, description, comment, filename, data, obsoletes=[], status='none'):
         fields = {}
         fields['bugid'] = str(self.id)
-        if self.attachment_token:
-          fields['token'] = self.attachment_token
+        token = self.get_attachment_token()
+        if token:
+          fields['token'] = token
         fields['action'] = 'insert'
         fields['ispatch'] = '1'
         fields['attachments.status'] = status
