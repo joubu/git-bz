@@ -1629,6 +1629,8 @@ def do_attach(*args):
     if global_options.add_url:
         add_url(bug, commits)
 
+    # as in edit_bug we need to update the bug first while our token is still valid
+    bug.update(addselfcc='1')
     attach_commits(bug, commits, edit_comments=global_options.edit)
 
 # Sort the patches in the bug into categories based on a set of Git
@@ -1793,8 +1795,8 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
     # token hash for the bug, since they'll change it. But each attachment
     # has an individual token hash for just that attachment, so we can
     # do the attachment updates afterwards.
-    if len(bug_changes) > 0:
-        bug.update(**bug_changes)
+    bug_changes['addselfcc'] = '1'
+    bug.update(**bug_changes)
 
     for (attachment_id, status) in changed_attachments.iteritems():
         patch = None
