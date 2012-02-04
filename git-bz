@@ -729,7 +729,7 @@ def edit_template(template):
 
     handle, filename = tempfile.mkstemp(".txt", "git-bz-")
     f = os.fdopen(handle, "w")
-    f.write(template)
+    f.write(template.encode("UTF-8"))
     f.close()
 
     edit_file(filename)
