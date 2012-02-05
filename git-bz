@@ -367,6 +367,17 @@ def get_default_fields(tracker):
             param = key[8:].replace("-", "_")
             default_fields[param] = value
 
+    # bz.default-* options specified in 'git config' have higher precedence
+    # than per-tracker options. We expect them to be set locally by the
+    # user for a particular git repository.
+
+    for key, value in git_config.iteritems():
+        if key.startswith("default-"):
+            param = key[8:].replace("-", "_")
+            if param in ['tracker', 'product', 'component']:
+                continue
+            default_fields[param] = value
+
     return default_fields
 
 # Utility functions for bugzilla

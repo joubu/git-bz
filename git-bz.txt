@@ -346,15 +346,37 @@ git config bz.default-component general
 Note the absence of --global; configuring a default product and component
 globally is seldom useful.
 
+[[default-field-values]]
+DEFAULT FIELD VALUES
+--------------------
+When filing a bug, git-bz needs to know the default values to use for
+the fields +version+, +op-sys+, +platform+, +assigned-to+ and
++priority+.  git-bz has built-in global defaults and specific defaults
+for particular common bug trackers, but if you are using a bug tracker
+that it doesn't know about, you may need to configure appropriate
+field values. Valid values for +priority+ are especially likely to vary
+between different Bugzilla instances.
+
+Also, for +version+, each product has it's own list of versions, and if
+the product owner has deleted the +unspecified+ version that git-bz
+uses as a default, you'll have to set that.
+
+The first place that git-bz checks for default field values is in the
+bugzilla config variable +bz.default-<field-name>+. So, to change the
+default value of version for the current repository, do:
+
+----------------------------------------
+git config bz.default-version 1.0
+----------------------------------------
+
+If no value is set there, then it looks for +default-<field-name>+ in
+the per-tracker configuration. See <<per-tracker-configuration, below>>.
+
+[[per-tracker-configuration]]
 PER-TRACKER CONFIGURATION
 -------------------------
-git-bz needs some configuration specific to the bugzilla instance (tracker),
-in particular it needs to know initial field values to use when submitting
-bugs; legal values for some fields depend on the instance. Initial field
-values are specified by the config variable +default-<field-name>+.
-
-In addition to initial field values, some other variables can be configured
-per tracker:
+In addition to <<default-field-values, default field values>>, some
+other variables can be configured per tracker:
 
 auth-user:: the user to use for basic HTTP authentication. Since
   basic auth sends passwords in clear text, you should not use this unless
