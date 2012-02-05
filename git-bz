@@ -66,6 +66,16 @@ https = true
 default-priority = ---
 """
 
+# Default values for options that can be configured via 'git config'
+git_config = {
+    'browser': 'firefox3',
+    'default-tracker': 'bugzilla.gnome.org',
+    'default-product': None,
+    'default-component': None,
+    'add-url': 'true',
+    'add-url-method': 'body-append:%u'
+}
+
 ################################################################################
 
 import base64
@@ -234,44 +244,25 @@ def commit_is_merge(commit):
 # Global configuration variables
 # ==============================
 
-def get_browser():
+def init_git_config():
     try:
-        return git.config('bz.browser', get=True)
+        config_options = git.config(r'^bz\.', get_regexp=True)
     except CalledProcessError:
-        return 'firefox3'
+        return
+
+    for line in config_options.split("\n"):
+        line = line.strip()
+        m = re.match("bz.(\S+)\s+(.*)", line)
+        name = m.group(1)
+        value = m.group(2)
+
+        git_config[name] = value
 
 def get_tracker():
     if global_options.bugzilla != None:
         return global_options.bugzilla
 
-    try:
-        return git.config('bz.default-tracker', get=True)
-    except CalledProcessError:
-        return 'bugzilla.gnome.org'
-
-def get_default_product():
-    try:
-        return git.config('bz.default-product', get=True)
-    except CalledProcessError:
-        return None
-
-def get_default_component():
-    try:
-        return git.config('bz.default-component', get=True)
-    except CalledProcessError:
-        return None
-
-def get_add_url():
-    try:
-        return git.config('bz.add-url', get=True) == 'true'
-    except CalledProcessError:
-        return True
-
-def get_add_url_method():
-    try:
-        return git.config('bz.add-url-method', get=True)
-    except CalledProcessError:
-        return "body-append:%u"
+    return git_config['default-tracker']
 
 # Per-tracker configuration variables
 # ===================================
@@ -621,7 +612,7 @@ def browser_list():
     return ", ".join(sorted(browsers.keys()))
 
 def get_bugzilla_cookies(host):
-    browser = get_browser()
+    browser = git_config['browser']
     if browser in browsers:
         do_get_cookies = browsers[browser]
     else:
@@ -1355,7 +1346,7 @@ Should be [subject-prepend|subject-append|body-prepend|body-append]:<format>""" 
         add_url_method)
 
 def add_url_to_subject_body(subject, body, bug):
-    add_url_method = get_add_url_method()
+    add_url_method = git_config['add-url-method']
     if not ':' in add_url_method:
         bad_url_method(add_url_method)
 
@@ -1956,14 +1947,14 @@ def do_file(*args):
         component = m.group(2)
 
         if not product:
-            product = get_default_product()
+            product = git_config['default-product']
 
         if not product:
             die("'%s' does not specify a product and no default product is configured" % product_component
                 + PRODUCT_COMPONENT_HELP)
     else:
-        product = get_default_product()
-        component = get_default_component()
+        product = git_config['default-product']
+        component = git_config['default-component']
 
         if not product:
             die("[<product>/]<component> not specified and no default product is configured"
@@ -2104,7 +2095,7 @@ def do_components(*args):
     if len(args) == 1:
         product = args[0]
     else:
-        product = get_default_product()
+        product = git_config['default-product']
         if not product:
             die("<product> not specified and no default product is configured" + PRODUCT_COMPONENT_HELP)
 
@@ -2123,6 +2114,8 @@ def do_components(*args):
         die("Unable to retrieve components: %s" % e.errmsg)
 
 ################################################################################
+
+init_git_config()
 
 if len(sys.argv) > 1:
     command = sys.argv[1]
@@ -2193,7 +2186,7 @@ else:
 global_options, args = parser.parse_args()
 
 if hasattr(global_options, 'add_url') and global_options.add_url is None:
-    global_options.add_url = get_add_url()
+    global_options.add_url = git_config['add-url'] == 'true'
 
 if len(args) < min_args or len(args) > max_args:
     parser.print_usage()
