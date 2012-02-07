@@ -264,6 +264,22 @@ def get_tracker():
 
     return git_config['default-tracker']
 
+def get_default_product():
+    product = git_config['default-product']
+    if product is None:
+        config = get_config(get_tracker())
+        product = config.get('default-product', None)
+
+    return product
+
+def get_default_component():
+    component = git_config['default-component']
+    if component is None:
+        config = get_config(get_tracker())
+        component = config.get('default-component', None)
+
+    return component
+
 # Per-tracker configuration variables
 # ===================================
 
@@ -357,26 +373,26 @@ def tracker_get_auth_password(tracker):
         return config['auth-password']
     return None
 
-def get_default_fields(tracker):
-    config = get_config(tracker)
-
-    default_fields = {}
-
-    for key, value in config.iteritems():
-        if key.startswith("default-"):
-            param = key[8:].replace("-", "_")
-            default_fields[param] = value
-
-    # bz.default-* options specified in 'git config' have higher precedence
-    # than per-tracker options. We expect them to be set locally by the
-    # user for a particular git repository.
-
-    for key, value in git_config.iteritems():
+def merge_default_fields_from_dict(default_fields, d):
+    for key, value in d.iteritems():
         if key.startswith("default-"):
             param = key[8:].replace("-", "_")
             if param in ['tracker', 'product', 'component']:
                 continue
             default_fields[param] = value
+
+def get_default_fields(tracker):
+    config = get_config(tracker)
+
+    default_fields = {}
+
+    merge_default_fields_from_dict(config)
+
+    # bz.default-* options specified in 'git config' have higher precedence
+    # than per-tracker options. We expect them to be set locally by the
+    # user for a particular git repository.
+
+    merge_default_fields_from_dict(git_config)
 
     return default_fields
 
@@ -1970,14 +1986,14 @@ def do_file(*args):
         component = m.group(2)
 
         if not product:
-            product = git_config['default-product']
+            product = get_default_product()
 
         if not product:
             die("'%s' does not specify a product and no default product is configured" % product_component
                 + PRODUCT_COMPONENT_HELP)
     else:
-        product = git_config['default-product']
-        component = git_config['default-component']
+        product = get_default_product()
+        component = get_default_component()
 
         if not product:
             die("[<product>/]<component> not specified and no default product is configured"
@@ -2118,7 +2134,7 @@ def do_components(*args):
     if len(args) == 1:
         product = args[0]
     else:
-        product = git_config['default-product']
+        product = get_default_product()
         if not product:
             die("<product> not specified and no default product is configured" + PRODUCT_COMPONENT_HELP)
 
