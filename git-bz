@@ -386,13 +386,13 @@ def get_default_fields(tracker):
 
     default_fields = {}
 
-    merge_default_fields_from_dict(config)
+    merge_default_fields_from_dict(default_fields, config)
 
     # bz.default-* options specified in 'git config' have higher precedence
     # than per-tracker options. We expect them to be set locally by the
     # user for a particular git repository.
 
-    merge_default_fields_from_dict(git_config)
+    merge_default_fields_from_dict(default_fields, git_config)
 
     return default_fields
 
