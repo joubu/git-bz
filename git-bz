@@ -129,6 +129,7 @@ def git_run(command, *args, **kwargs):
     quiet = False
     input = None
     return_stderr = False
+    strip = True
     for (k,v) in kwargs.iteritems():
         if k == '_quiet':
             quiet = True
@@ -136,6 +137,8 @@ def git_run(command, *args, **kwargs):
             interactive = True
         elif k == '_return_stderr':
             return_stderr = True
+        elif k == '_strip':
+            strip = v
         elif k == '_input':
             input = v
         elif v is True:
@@ -163,10 +166,15 @@ def git_run(command, *args, **kwargs):
 
     if interactive:
         return None
-    elif return_stderr:
-        return output.strip(), error.strip()
     else:
-        return output.strip()
+        if strip:
+            output = output.strip()
+            error = error.strip()
+
+        if return_stderr:
+            return output, error
+        else:
+            return output
 
 # Wrapper to allow us to do git.<command>(...) instead of git_run()
 class Git:
@@ -228,7 +236,10 @@ def get_patch(commit):
     return git.format_patch(commit.id + "^.." + commit.id, stdout=True, M=True)
 
 def get_body(commit):
-    return git.log(commit.id + "^.." + commit.id, pretty="format:%b")
+    body = git.log(commit.id + "^.." + commit.id, pretty="format:%b", _strip=False)
+    # Preserve leading space, which tends to be indents, but strip off
+    # the trailing newline and any other insignificant space at the end.
+    return body.rstrip()
 
 def commit_is_merge(commit):
     contents = git.cat_file("commit", commit.id)
