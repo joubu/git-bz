@@ -192,6 +192,7 @@ default product if none is given on the command line).
 edit
 ~~~~
 
+[verse]
 'git bz edit' (<bug reference> | <commit> | <revision range>)
 'git bz edit' --pushed (<commit> | <revision range>)
 
