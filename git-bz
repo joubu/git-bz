@@ -1665,7 +1665,7 @@ Subject: %s
 FIXME: need commit message.
 (Please also double check the author and subject.)
 ---
-"""" + patch.data
+""" + patch.data
             need_amend = True
         else:
             need_amend = False
