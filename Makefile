@@ -1,3 +1,5 @@
+all: git-bz.html git-bz.1
+
 %.xml: %.txt
 	asciidoc -f asciidoc.conf -d manpage -b docbook $<
 
@@ -12,3 +14,5 @@ upload-html: git-bz.html
 	if [ $$? = 0 ] ; then : ; else echo "upload location not configured" ; exit 1 ; fi ; \
 	scp $< $$DEST
 
+clean:
+	rm -f git-bz.xml git-bz.html git-bz.1
