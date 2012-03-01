@@ -1579,7 +1579,7 @@ def do_apply(*args):
 
         if need_amend:
             try:
-                git.commit(amend=True)
+                git.commit(amend=True, _interactive=True)
             except CalledProcessError:
                 print >>sys.stderr, "Warning: left dummy commit message"
 
@@ -1689,7 +1689,7 @@ Subject: %s
 
         if need_amend:
             try:
-                git.commit(amend=True)
+                git.commit(amend=True, _interactive=True)
             except CalledProcessError:
                 print >>sys.stderr, "Warning: left dummy commit message"
 
