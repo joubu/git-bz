@@ -1659,6 +1659,12 @@ Date: %s
 Subject: %s
 """ % (name, email, patch.date, patch.description)
             patch.data = headers + "\n\nFIXME: need commit message\n---\n" + patch.data
+            patch.data = headers + """
+
+FIXME: need commit message.
+(Please also double check the author and subject.)
+---
+"""" + patch.data
             need_amend = True
         else:
             need_amend = False
