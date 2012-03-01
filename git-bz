@@ -1658,7 +1658,8 @@ From: %s <%s>
 Date: %s
 Subject: %s
 """ % (name, email, patch.date, patch.description)
-            patch.data = headers + "\n\nFIXME: need commit message\n---\n" + patch.data
+            # The exact string 'FIXME: need commit message' is checked for by
+            # git.gnome.org commit hooks, so they need to be updated if it changes.
             patch.data = headers + """
 
 FIXME: need commit message.
