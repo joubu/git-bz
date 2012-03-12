@@ -187,6 +187,11 @@ to the bug (see 'git bz add-url'). This can be suppressed with the
 	allow the user to edit the description and comment for each patch,
 	and (by uncommenting lines) obsolete old patches.
 
+When a commit with the same subject as an existing patch is attached,
+this is interpreted as a new version of the existing patch and the old
+patch is obsoleted. (With '-e', the obsoletes line can be commented
+to suppress this.)
+
 Examples:
 ----------------------------------------
 # Attach the last commit
