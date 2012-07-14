@@ -102,6 +102,7 @@ import urllib
 import urlparse
 from xml.etree.cElementTree import ElementTree
 import base64
+import warnings
 
 # Globals
 # =======
@@ -1767,6 +1768,14 @@ def edit_attachment_comment(bug, initial_description, initial_body):
             template.write("%sObsoletes: %d - %s\n" % ("" if obsoleted else "#", patch.attach_id, patch.description))
         template.write("\n")
 
+    template.write("# Current status: %s\n" % bug.bug_status)
+    template.write("# Status: Needs Signoff\n")
+    template.write("# Status: Signed Off\n")
+    template.write("# Status: Passed QA\n")
+    template.write("# Status: Pushed to Master\n")
+    template.write("# Status: Pushed to Stable\n")
+    template.write("\n")
+
     template.write("""# Please edit the description (first line) and comment (other lines). Lines
 # starting with '#' will be ignored.  Delete everything to abort.
 """)
@@ -1776,22 +1785,26 @@ def edit_attachment_comment(bug, initial_description, initial_body):
     lines = edit_template(template.getvalue())
 
     obsoletes= []
-    def filter_obsolete(line):
+    statuses= []
+    def filter_line(line):
         m = re.match("^\s*Obsoletes\s*:\s*([\d]+)", line)
         if m:
             obsoletes.append(int(m.group(1)))
             return False
-        else:
-            return True
+        m = re.match("^\s*Status\s*:\s*(.+)", line)
+        if m:
+            statuses.append(m.group(1))
+            return False
+        return True
 
-    lines = filter(filter_obsolete, lines)
+    lines = filter(filter_line, lines)
 
     description, comment = split_subject_body(lines)
 
     if description == "":
         die("Empty description, aborting")
 
-    return description, comment, obsoletes
+    return description, comment, obsoletes, statuses
 
 def attach_commits(bug, commits, include_comments=True, edit_comments=False, status='none'):
     # We want to attach the patches in chronological order
@@ -1806,13 +1819,20 @@ def attach_commits(bug, commits, include_comments=True, edit_comments=False, sta
         else:
             body = None
         if edit_comments:
-            description, body, obsoletes = edit_attachment_comment(bug, commit.subject, body)
+            description, body, obsoletes, statuses = edit_attachment_comment(bug, commit.subject, body)
         else:
             description = commit.subject
             obsoletes = []
             for attachment in bug.patches:
                 if attachment.description == commit.subject:
                     obsoletes.append(attachment.attach_id)
+            statuses = []
+
+        if len(statuses) > 0:
+            bug_changes = {}
+            bug_changes['bug_status'] = statuses[0]
+            bug.update(**bug_changes)
+            print "Updated bug status to '%s'" % bug_changes['bug_status']
 
         bug.create_patch(description, body, filename, patch, obsoletes=obsoletes, status=status)
 
@@ -1926,6 +1946,13 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
             commit = newly_applied_patches[patch]
             template.write("Attachment %d pushed as %s - %s\n" % (patch.attach_id, commit.id[0:7], commit.subject))
 
+    template.write("# Status: Needs Signoff\n")
+    template.write("# Status: Signed Off\n")
+    template.write("# Status: Passed QA\n")
+    template.write("# Status: Pushed to Master\n")
+    template.write("# Status: Pushed to Stable\n")
+    template.write("# Status: In Discussion\n")
+
     if mark_resolved:
         template.write("# Comment to keep bug open\n")
     elif bug.bug_status == "RESOLVED":
@@ -1975,6 +2002,10 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
         if m:
             resolutions.append(m.group(1))
             return False
+        m = re.match("^\s*Status\s*:\s*(.+)", line)
+        if m:
+            statuses.append(m.group(1))
+            return False
         m = re.match("^\s*(\S+)\s*@\s*(\d+)", line)
         if m:
             status = m.group(1)
@@ -1984,13 +2015,15 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
 
     changed_attachments = {}
     resolutions = []
+    statuses = []
 
     lines = filter(filter_line, lines)
 
     comment = "".join(lines).strip()
+    bug_status = statuses[0] if len(statuses) > 0 else None
     resolution = resolutions[0] if len(resolutions) > 0 else None
 
-    if resolution is None and len(changed_attachments) == 0 and comment == "":
+    if bug_status is None and resolution is None and len(changed_attachments) == 0 and comment == "":
         print "No changes, not editing Bug %d - %s" % (bug.id, bug.short_desc)
         return False
 
@@ -2008,6 +2041,9 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
                     comment = comment.replace(old_id, new_id)
 
     bug_changes = {}
+    if bug_status is not None:
+        bug_changes['bug_status'] = bug_status
+
     if resolution is not None:
         if legal_resolutions:
             try:
