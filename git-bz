@@ -104,6 +104,11 @@ from xml.etree.cElementTree import ElementTree
 import base64
 import warnings
 
+import smtplib
+import random
+import string
+
+
 # Globals
 # =======
 
@@ -1122,6 +1127,7 @@ def get_bug_server(host, path, https, auth_user, auth_password, bz_user, bz_pass
 
     return servers[identifier]
 
+
 # Unfortunately, Bugzilla doesn't set a useful status code for
 # form posts.  Because it's very confusing to claim we succeeded
 # but not, we look for text in the response indicating success,
@@ -1304,6 +1310,19 @@ class Bug(object):
             die ("Failed to attach patch to bug %d, status=%d" % (self.id, response.status))
 
         print "Attached %s" % filename
+
+        if global_options.mail:
+            N=6
+            tempfile = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in range(N))
+            f = open('/tmp/'+tempfile, 'w')
+            f.write(data)
+            f.close()
+            mlist = "koha-patches@lists.koha-community.org"
+            str1 = "git send-email  --quiet  --confirm never  --to '" + mlist +"' /tmp/"+tempfile
+
+            import os
+            retvalue = os.system(str1)
+            print retvalue
 
     # Update specified fields of a bug; keyword arguments are interpreted
     # as field_name=value
@@ -2411,6 +2430,10 @@ def add_edit_option():
     parser.add_option("-e", "--edit", action="store_true",
                       help="allow editing the bugzilla comment")
 
+def add_mail_option():
+    parser.add_option("-m", "--mail", action="store_true",
+                      help="send email")
+
 def add_fix_option():
     parser.add_option("", "--fix", metavar="<bug reference>",
                       help="attach commits and close bug")
@@ -2433,12 +2456,13 @@ elif command == 'apply':
     add_add_url_options()
     min_args = 0
     max_args = 1
+
 elif command == 'attach':
     parser.set_usage("git bz attach [options] [<bug reference>] (<commit> | <revision range>)");
     add_add_url_options()
     add_edit_option()
+    add_mail_option()
     min_args = 1
-    max_args = 2
 elif command == 'components':
     parser.set_usage("git bz components [options] [<product>]");
     min_args = 0
