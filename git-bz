@@ -1734,8 +1734,12 @@ FIXME: need commit message.
         f.close()
 
         try:
-            process = git.am("-3", filename, resolvemsg=resolvemsg,
-                             _interactive=True)
+            if global_options.signoff:
+                process = git.am("-3", "-s", filename, resolvemsg=resolvemsg,
+                                _interactive=True)
+            else:
+                process = git.am("-3", filename, resolvemsg=resolvemsg,
+                                _interactive=True)
         except CalledProcessError:
             if os.access(git_dir + "/rebase-apply", os.F_OK):
                 # git-am saved its state for an abort or continue,
@@ -2438,6 +2442,10 @@ def add_fix_option():
     parser.add_option("", "--fix", metavar="<bug reference>",
                       help="attach commits and close bug")
 
+def add_signoff_option():
+    parser.add_option("-s", "--signoff", action="store_true",
+                      help="sign off when applying")
+
 if command == 'add-url':
     parser.set_usage("git bz add-url [options] <bug reference> (<commit> | <revision range>)");
     min_args = max_args = 2
@@ -2456,6 +2464,7 @@ elif command == 'apply':
     add_add_url_options()
     min_args = 0
     max_args = 1
+    add_signoff_option()
 
 elif command == 'attach':
     parser.set_usage("git bz attach [options] [<bug reference>] (<commit> | <revision range>)");
