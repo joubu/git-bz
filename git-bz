@@ -83,7 +83,7 @@ import cPickle as pickle
 from ConfigParser import RawConfigParser, NoOptionError
 import httplib
 import urllib
-from optparse import OptionParser
+import optparse
 import os
 try:
     from sqlite3 import dbapi2 as sqlite
