@@ -1908,7 +1908,7 @@ def do_attach(*args):
         add_url(bug, commits)
 
     # as in edit_bug we need to update the bug first while our token is still valid
-    bug.update(addselfcc='1')
+    # bug.update(addselfcc='1')
     attach_commits(bug, commits, edit_comments=global_options.edit)
 
 # Sort the patches in the bug into categories based on a set of Git
