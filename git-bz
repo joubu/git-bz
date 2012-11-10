@@ -2472,6 +2472,7 @@ elif command == 'attach':
     add_edit_option()
     add_mail_option()
     min_args = 1
+    max_args = 2
 elif command == 'components':
     parser.set_usage("git bz components [options] [<product>]");
     min_args = 0
