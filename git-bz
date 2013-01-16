@@ -1185,6 +1185,8 @@ class Bug(object):
             self.resolution = bug.find("resolution").text
         token = bug.find("token")
         self.token = None if token is None else token.text
+        patch_complexity = bug.find("cf_patch_complexity")
+        self.patch_complexity = None if patch_complexity is None else patch_complexity.text
 
         for attachment in bug.findall("attachment"):
             if attachment.get("ispatch") == "1" and not attachment.get("isobsolete") == "1" :
@@ -1799,6 +1801,14 @@ def edit_attachment_comment(bug, initial_description, initial_body):
     template.write("# Status: Pushed to Stable\n")
     template.write("\n")
 
+    template.write("# Current patch-complexity: %s\n" % bug.patch_complexity)
+    template.write("# Patch-complexity: String patch\n")
+    template.write("# Patch-complexity: Trivial patch\n")
+    template.write("# Patch-complexity: Small patch\n")
+    template.write("# Patch-complexity: Medium patch\n")
+    template.write("# Patch-complexity: Large patch\n")
+    template.write("\n")
+
     template.write("""# Please edit the description (first line) and comment (other lines). Lines
 # starting with '#' will be ignored.  Delete everything to abort.
 """)
@@ -1809,6 +1819,7 @@ def edit_attachment_comment(bug, initial_description, initial_body):
 
     obsoletes= []
     statuses= []
+    patch_complexities = []
     def filter_line(line):
         m = re.match("^\s*Obsoletes\s*:\s*([\d]+)", line)
         if m:
@@ -1817,6 +1828,10 @@ def edit_attachment_comment(bug, initial_description, initial_body):
         m = re.match("^\s*Status\s*:\s*(.+)", line)
         if m:
             statuses.append(m.group(1))
+            return False
+        m = re.match("^\s*Patch-complexity\s*:\s*(.+)", line)
+        if m:
+            patch_complexities.append(m.group(1))
             return False
         return True
 
@@ -1827,7 +1842,7 @@ def edit_attachment_comment(bug, initial_description, initial_body):
     if description == "":
         die("Empty description, aborting")
 
-    return description, comment, obsoletes, statuses
+    return description, comment, obsoletes, statuses, patch_complexities
 
 def attach_commits(bug, commits, include_comments=True, edit_comments=False, status='none'):
     # We want to attach the patches in chronological order
@@ -1842,7 +1857,7 @@ def attach_commits(bug, commits, include_comments=True, edit_comments=False, sta
         else:
             body = None
         if edit_comments:
-            description, body, obsoletes, statuses = edit_attachment_comment(bug, commit.subject, body)
+            description, body, obsoletes, statuses, patch_complexities = edit_attachment_comment(bug, commit.subject, body)
         else:
             description = commit.subject
             obsoletes = []
@@ -1850,12 +1865,19 @@ def attach_commits(bug, commits, include_comments=True, edit_comments=False, sta
                 if attachment.description == commit.subject:
                     obsoletes.append(attachment.attach_id)
             statuses = []
+            patch_complexities = []
 
         if len(statuses) > 0:
             bug_changes = {}
             bug_changes['bug_status'] = statuses[0]
             bug.update(**bug_changes)
             print "Updated bug status to '%s'" % bug_changes['bug_status']
+
+        if len(patch_complexities) > 0:
+            bug_changes = {}
+            bug_changes['cf_patch_complexity'] = patch_complexities[0]
+            bug.update(**bug_changes)
+            print "Updated patch complexity to '%s'" % bug_changes['cf_patch_complexity']
 
         bug.create_patch(description, body, filename, patch, obsoletes=obsoletes, status=status)
 
@@ -1976,6 +1998,12 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
     template.write("# Status: Pushed to Stable\n")
     template.write("# Status: In Discussion\n")
 
+    template.write("# Patch-complexity: String patch\n")
+    template.write("# Patch-complexity: Trivial patch\n")
+    template.write("# Patch-complexity: Small patch\n")
+    template.write("# Patch-complexity: Medium patch\n")
+    template.write("# Patch-complexity: Large patch\n")
+
     if mark_resolved:
         template.write("# Comment to keep bug open\n")
     elif bug.bug_status == "RESOLVED":
@@ -2034,19 +2062,25 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
             status = m.group(1)
             changed_attachments[int(m.group(2))] = status
             return False
+        m = re.match("^\s*Patch-complexity\s*:\s*(.+)", line)
+        if m:
+            patch_complexities.append(m.group(1))
+            return False
         return True
 
     changed_attachments = {}
     resolutions = []
     statuses = []
+    patch_complexities = []
 
     lines = filter(filter_line, lines)
 
     comment = "".join(lines).strip()
     bug_status = statuses[0] if len(statuses) > 0 else None
     resolution = resolutions[0] if len(resolutions) > 0 else None
+    patch_complexity = patch_complexities[0] if len(patch_complexities) > 0 else None
 
-    if bug_status is None and resolution is None and len(changed_attachments) == 0 and comment == "":
+    if patch_complexity is None and bug_status is None and resolution is None and len(changed_attachments) == 0 and comment == "":
         print "No changes, not editing Bug %d - %s" % (bug.id, bug.short_desc)
         return False
 
@@ -2064,6 +2098,9 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
                     comment = comment.replace(old_id, new_id)
 
     bug_changes = {}
+    if patch_complexity is not None:
+        bug_changes['cf_patch_complexity'] = patch_complexity
+
     if bug_status is not None:
         bug_changes['bug_status'] = bug_status
 
