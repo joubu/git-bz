@@ -1867,17 +1867,21 @@ def attach_commits(bug, commits, include_comments=True, edit_comments=False, sta
             statuses = []
             patch_complexities = []
 
+        bug_changes = {}
+
         if len(statuses) > 0:
-            bug_changes = {}
             bug_changes['bug_status'] = statuses[0]
-            bug.update(**bug_changes)
-            print "Updated bug status to '%s'" % bug_changes['bug_status']
 
         if len(patch_complexities) > 0:
-            bug_changes = {}
             bug_changes['cf_patch_complexity'] = patch_complexities[0]
+
+        if len(statuses) > 0 or len(patch_complexities) > 0:
             bug.update(**bug_changes)
-            print "Updated patch complexity to '%s'" % bug_changes['cf_patch_complexity']
+            if len(patch_complexities) > 0:
+                print "Updated patch complexity to '%s'" % bug_changes['cf_patch_complexity']
+
+            if len(statuses) > 0:
+                print "Updated bug status to '%s'" % bug_changes['bug_status']
 
         bug.create_patch(description, body, filename, patch, obsoletes=obsoletes, status=status)
 
