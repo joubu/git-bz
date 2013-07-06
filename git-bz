@@ -1187,6 +1187,8 @@ class Bug(object):
         self.token = None if token is None else token.text
         patch_complexity = bug.find("cf_patch_complexity")
         self.patch_complexity = None if patch_complexity is None else patch_complexity.text
+        depends = bug.findall("dependson")
+        self.depends = None if depends is None else ' '.join(map(lambda e: e.text, depends))
 
         for attachment in bug.findall("attachment"):
             if attachment.get("ispatch") == "1" and not attachment.get("isobsolete") == "1" :
@@ -1828,6 +1830,12 @@ def edit_attachment_comment(bug, initial_description, initial_body):
     template.write("# Patch-complexity: Large patch\n")
     template.write("\n")
 
+    template.write("# Current depends: %s\n" % bug.depends)
+    template.write("# Depends: bug xxxx\n")
+    template.write("# Depends: bug yyyy\n")
+    template.write("# Depends: bug zzzz\n")
+    template.write("\n")
+
     template.write("""# Please edit the description (first line) and comment (other lines). Lines
 # starting with '#' will be ignored.  Delete everything to abort.
 """)
@@ -1839,6 +1847,7 @@ def edit_attachment_comment(bug, initial_description, initial_body):
     obsoletes= []
     statuses= []
     patch_complexities = []
+    depends = []
     def filter_line(line):
         m = re.match("^\s*Obsoletes\s*:\s*([\d]+)", line)
         if m:
@@ -1852,6 +1861,10 @@ def edit_attachment_comment(bug, initial_description, initial_body):
         if m:
             patch_complexities.append(m.group(1))
             return False
+        m = re.match("^\s*Depends\s*:\s*([Bb][Uu][Gg])?\s*(\d+)", line)
+        if m:
+            depends.append(m.group(2))
+            return False
         return True
 
     lines = filter(filter_line, lines)
@@ -1861,7 +1874,7 @@ def edit_attachment_comment(bug, initial_description, initial_body):
     if description == "":
         die("Empty description, aborting")
 
-    return description, comment, obsoletes, statuses, patch_complexities
+    return description, comment, obsoletes, statuses, patch_complexities, depends
 
 def attach_commits(bug, commits, include_comments=True, edit_comments=False, status='none'):
     # We want to attach the patches in chronological order
@@ -1876,7 +1889,7 @@ def attach_commits(bug, commits, include_comments=True, edit_comments=False, sta
         else:
             body = None
         if edit_comments:
-            description, body, obsoletes, statuses, patch_complexities = edit_attachment_comment(bug, commit.subject, body)
+            description, body, obsoletes, statuses, patch_complexities, depends = edit_attachment_comment(bug, commit.subject, body)
         else:
             description = commit.subject
             obsoletes = []
@@ -1885,6 +1898,7 @@ def attach_commits(bug, commits, include_comments=True, edit_comments=False, sta
                     obsoletes.append(attachment.attach_id)
             statuses = []
             patch_complexities = []
+            depends = []
 
         bug_changes = {}
 
@@ -1894,8 +1908,14 @@ def attach_commits(bug, commits, include_comments=True, edit_comments=False, sta
         if len(patch_complexities) > 0:
             bug_changes['cf_patch_complexity'] = patch_complexities[0]
 
-        if len(statuses) > 0 or len(patch_complexities) > 0:
+        if len(depends) > 0:
+            bug_changes['dependson'] = ' '.join(depends)
+
+        if len(statuses) > 0 or len(patch_complexities) > 0 or len(depends) > 0:
             bug.update(**bug_changes)
+            if len(depends) > 0:
+                print "Updated depends to '%s'" % bug_changes['dependson']
+
             if len(patch_complexities) > 0:
                 print "Updated patch complexity to '%s'" % bug_changes['cf_patch_complexity']
 
@@ -2027,6 +2047,10 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
     template.write("# Patch-complexity: Medium patch\n")
     template.write("# Patch-complexity: Large patch\n")
 
+    template.write("# Depends: bug xxxx\n")
+    template.write("# Depends: bug yyyy\n")
+    template.write("# Depends: bug zzzz\n")
+
     if mark_resolved:
         template.write("# Comment to keep bug open\n")
     elif bug.bug_status == "RESOLVED":
@@ -2089,12 +2113,17 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
         if m:
             patch_complexities.append(m.group(1))
             return False
+        m = re.match("^\s*Depends\s*:\s*([Bb][Uu][Gg])?\s*(\d+)", line)
+        if m:
+            depends.append(m.group(2))
+            return False
         return True
 
     changed_attachments = {}
     resolutions = []
     statuses = []
     patch_complexities = []
+    depends = []
 
     lines = filter(filter_line, lines)
 
@@ -2102,8 +2131,9 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
     bug_status = statuses[0] if len(statuses) > 0 else None
     resolution = resolutions[0] if len(resolutions) > 0 else None
     patch_complexity = patch_complexities[0] if len(patch_complexities) > 0 else None
+    depends = ' '.join(depends) if len(depends) > 0 else None
 
-    if patch_complexity is None and bug_status is None and resolution is None and len(changed_attachments) == 0 and comment == "":
+    if depends is None and patch_complexity is None and bug_status is None and resolution is None and len(changed_attachments) == 0 and comment == "":
         print "No changes, not editing Bug %d - %s" % (bug.id, bug.short_desc)
         return False
 
@@ -2121,6 +2151,9 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
                     comment = comment.replace(old_id, new_id)
 
     bug_changes = {}
+    if depends is not None:
+        bug_change['dependson'] = depends
+
     if patch_complexity is not None:
         bug_changes['cf_patch_complexity'] = patch_complexity
 
