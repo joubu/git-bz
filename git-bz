@@ -2030,7 +2030,7 @@ def edit_bug(bug, applied_commits=None, fix_commits=None):
     if mark_resolved:
         template.write("# Comment to keep bug open\n")
     elif bug.bug_status == "RESOLVED":
-        template.write("# Uncommment and edit to change resolution\n")
+        template.write("# Uncomment and edit to change resolution\n")
     else:
         template.write("# Uncomment to resolve bug\n")
     legal_resolutions = bug.server.legal_values('resolution')
