@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf_8 -*-
 #
 # git-bz - git subcommand to integrate with bugzilla
 #
@@ -807,7 +808,7 @@ def edit_template(template):
 
     handle, filename = tempfile.mkstemp(".txt", "git-bz-")
     f = os.fdopen(handle, "w")
-    f.write(template.encode("utf-8"))
+    f.write(template)
     f.close()
 
     edit_file(filename)
