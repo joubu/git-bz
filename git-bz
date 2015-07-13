@@ -1380,11 +1380,10 @@ class Bug(object):
         response = self.server.send_post("/process_bug.cgi", changes)
         response_data = response.read()
         if not check_for_success(response, response_data,
-                                 r"<title>\s*Bug[\S\s]*processed\s*</title>"):
+                                 r"<title>\s*[Bug]*[\S\s]*processed\s*</title>"):
 
             # Mid-air collisions would be indicated by
             # "<title>Mid-air collision!</title>"
-
             print response_data
             die ("Failed to update bug %d, status=%d" % (self.id, response.status))
 
