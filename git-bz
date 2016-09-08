@@ -1649,6 +1649,7 @@ def do_apply(*args):
     git_dir = git.rev_parse(git_dir=True)
     resuming = global_options.resolved or global_options.skip or global_options.abort
 
+    do_not_add_url = 0
     if len(args) == 0:
         if not resuming:
             die(parser.get_usage())
@@ -1690,6 +1691,8 @@ def do_apply(*args):
             die(parser.get_usage())
 
         bug_ref = args[0]
+        if len(args) > 1:
+            do_not_add_url = args[1]['do_not_add_url']
         orig_head = git.rev_parse("HEAD")
 
     bug = Bug.load(BugHandle.parse_or_die(bug_ref),
@@ -1706,6 +1709,27 @@ def do_apply(*args):
         for pid in patch_ids:
             patches.append(patches_by_id[pid])
     else:
+        dependencies = bug.depends.split(' ');
+        for d_id in dependencies:
+            if d_id == '':
+                continue
+            dep_bug = Bug.load(BugHandle.parse_or_die(d_id),
+                           attachmentdata=False)
+            s = dep_bug.bug_status
+            if     s == "Needs Signoff" \
+                or s == 'Signed Off' \
+                or s == 'Passed QA':
+                print "\nBug %s Depends on bug %s" % ( bug.id, dep_bug.id)
+                opt = prompt_multi("Follow? [(y)es, (n)o]", ["y", "n"])
+                if opt == "n":
+                    continue
+                else:
+                    applied = do_apply(d_id, { 'do_not_add_url': 1} )
+                    if applied == -1:
+                        die("\nCannot apply cleanly patches from bug %s. Everything will be left dirty.\ngit bz apply --continue will not continue the process if patches from other bug reports need to be applied." % d_id)
+
+        orig_head = git.rev_parse("HEAD")
+
         print "Bug %d - %s" % (bug.id, bug.short_desc)
         print
 
@@ -1796,7 +1820,7 @@ FIXME: need commit message.
                     f.write("%s\n" % patches[i].attach_id)
                 f.close()
             print "Patch left in %s" % filename
-            return
+            return -1
 
         os.remove(filename)
 
@@ -1806,7 +1830,7 @@ FIXME: need commit message.
             except CalledProcessError:
                 print >>sys.stderr, "Warning: left dummy commit message"
 
-    if global_options.add_url:
+    if global_options.add_url and not do_not_add_url:
         # Slightly hacky. We could add the URLs as we go by using
         # git-mailinfo to parse each patch, calling
         # add_url_to_subject_body(), and then reassembling. That would
