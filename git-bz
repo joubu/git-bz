@@ -1926,6 +1926,7 @@ def attach_commits(bug, commits, include_comments=True, edit_comments=False, sta
     commits = list(commits)
     commits.reverse()
 
+    is_first = True
     for commit in commits:
         filename = make_filename(commit.subject) + ".patch"
         patch = get_patch(commit)
@@ -1933,7 +1934,7 @@ def attach_commits(bug, commits, include_comments=True, edit_comments=False, sta
             body = strip_bug_url(bug, get_body(commit))
         else:
             body = None
-        if edit_comments:
+        if edit_comments and is_first is True:
             description, body, obsoletes, statuses, patch_complexities, depends = edit_attachment_comment(bug, commit.subject, body)
         else:
             description = commit.subject
@@ -1945,6 +1946,7 @@ def attach_commits(bug, commits, include_comments=True, edit_comments=False, sta
             patch_complexities = []
             depends = []
 
+        is_first = False
         bug_changes = {}
 
         if len(statuses) > 0:
