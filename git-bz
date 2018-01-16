@@ -413,6 +413,12 @@ def tracker_get_bz_password(tracker):
         return config['bz-password']
     return None
 
+def tracker_get_use_git_credential(tracker):
+    config = get_config(tracker)
+    if 'use-git-credential' in config:
+        return config['use-git-credential'] == 'true'
+    return False
+
 def get_default_fields(tracker):
     config = get_config(tracker)
 
@@ -438,7 +444,7 @@ class BugParseError(Exception):
 # uniquely identifies a bug on a server, though until we try
 # to load it (and create a Bug) we don't know if it actually exists.
 class BugHandle:
-    def __init__(self, host, path, https, id, auth_user=None, auth_password=None, bz_user=None, bz_password=None):
+    def __init__(self, host, path, https, id, auth_user=None, auth_password=None, bz_user=None, bz_password=None, use_git_credential=False):
         self.host = host
         self.path = path
         self.https = https
@@ -447,6 +453,7 @@ class BugHandle:
         self.auth_password = auth_password
         self.bz_user = bz_user
         self.bz_password = bz_password
+        self.use_git_credential = use_git_credential
 
         # ensure that the path to the bugzilla installation is an absolute path
         # so that it will still work even if their config option specifies
@@ -509,7 +516,8 @@ class BugHandle:
                                  auth_user=user,
                                  auth_password=password,
                                  bz_user=tracker_get_bz_user(parseresult.hostname),
-                                 bz_password=tracker_get_bz_password(parseresult.hostname))
+                                 bz_password=tracker_get_bz_password(parseresult.hostname),
+                                 use_git_credential=tracker_get_use_git_credential(parseresult.hostname))
 
         colon = bug_reference.find(":")
         if colon > 0:
@@ -529,11 +537,12 @@ class BugHandle:
         auth_password = tracker_get_auth_password(tracker)
         bz_user = tracker_get_bz_user(tracker)
         bz_password = tracker_get_bz_password(tracker)
+        use_git_credential = tracker_get_use_git_credential(tracker)
 
         if not re.match(r"^.*\.[a-zA-Z]{2,}$", host):
             raise BugParseError("'%s' doesn't look like a valid bugzilla host or alias" % host)
 
-        return BugHandle(host=host, path=path, https=https, id=id, auth_user=auth_user, auth_password=auth_password, bz_user=bz_user, bz_password=bz_password)
+        return BugHandle(host=host, path=path, https=https, id=id, auth_user=auth_user, auth_password=auth_password, bz_user=bz_user, bz_password=bz_password, use_git_credential=use_git_credential)
 
     @staticmethod
     def parse_or_die(str):
@@ -908,7 +917,7 @@ def get_connection(host, https):
     return connections[identifier]
 
 class BugServer(object):
-    def __init__(self, host, path, https, auth_user=None, auth_password=None, bz_user=None, bz_password=None):
+    def __init__(self, host, path, https, auth_user=None, auth_password=None, bz_user=None, bz_password=None, use_git_credential=False):
         self.host = host
         self.path = path
         self.https = https
@@ -916,6 +925,7 @@ class BugServer(object):
         self.auth_password = auth_password
         self.bz_password = bz_password
         self.bz_user = bz_user
+        self.use_git_credential = use_git_credential
 
         self.cookiestring = ''
 
@@ -923,7 +933,7 @@ class BugServer(object):
 
     def get_cookie_string(self):
         if self.cookiestring == '':
-            if self.bz_user and self.bz_password:
+            if (self.bz_user and self.bz_password) or self.use_git_credential:
                 # get a login request cookie
                 connection = get_connection(self.host, self.https)
                 connection.request("GET", self.path + "/index.cgi")
@@ -944,10 +954,37 @@ class BugServer(object):
                 headers['Cookie'] = login_request_cookie
                 headers['User-Agent'] = "git-bz"
 
+                if self.use_git_credential:
+                    protocol = 'https' if self.https else 'http'
+                    git_credential_input = "protocol={protocol}\nhost={host}\npath={path}\n\n".format(protocol=protocol, host=self.host, path=self.path.lstrip('/'))
+                    process = Popen(["git", "credential", "fill"],
+                                    stdout=PIPE,
+                                    stdin=PIPE)
+                    git_credential_output, error = process.communicate(git_credential_input)
+                    match = re.search('username=(.*)', git_credential_output)
+                    bz_user = match.group(1)
+                    match = re.search('password=(.*)', git_credential_output)
+                    bz_password = match.group(1)
+                else:
+                    bz_user = self.bz_user
+                    bz_password = self.bz_password
+
                 # now that we have both token and login request cookie
                 # authentication should now work
-                connection.request("POST", self.path + "/index.cgi", urllib.urlencode({'Bugzilla_login':self.bz_user,'Bugzilla_password':self.bz_password,'Bugzilla_login_token':login_token}), headers)
+                connection.request("POST", self.path + "/index.cgi", urllib.urlencode({'Bugzilla_login':bz_user,'Bugzilla_password':bz_password,'Bugzilla_login_token':login_token}), headers)
                 res = connection.getresponse()
+
+                if self.use_git_credential:
+                    # If page body doesn't contain 'Invalid Login' we consider it a
+                    # successful login
+                    match = re.search('Invalid Login', res.read())
+                    if match:
+                        process = Popen(["git", "credential", "reject"], stdin = PIPE)
+                        process.communicate(git_credential_output)
+                    else:
+                        process = Popen(["git", "credential", "approve"], stdin = PIPE)
+                        process.communicate(git_credential_output)
+
                 self.cookiestring = res.getheader('set-cookie')
                 connection.close()
             else:
@@ -1142,10 +1179,10 @@ servers = {}
 # host/https of the server to avoid doing too many redirections, and
 # so the host,https we connect to may be different than what we use
 # to look up the server.
-def get_bug_server(host, path, https, auth_user, auth_password, bz_user, bz_password):
+def get_bug_server(host, path, https, auth_user, auth_password, bz_user, bz_password, use_git_credential):
     identifier = (host, path, https)
     if not identifier in servers:
-        servers[identifier] = BugServer(host, path, https, auth_user, auth_password, bz_user, bz_password)
+        servers[identifier] = BugServer(host, path, https, auth_user, auth_password, bz_user, bz_password, use_git_credential)
 
     return servers[identifier]
 
@@ -1430,7 +1467,7 @@ class Bug(object):
 
     @staticmethod
     def load(bug_reference, attachmentdata=False):
-        server = get_bug_server(bug_reference.host, bug_reference.path, bug_reference.https, bug_reference.auth_user, bug_reference.auth_password, bug_reference.bz_user, bug_reference.bz_password)
+        server = get_bug_server(bug_reference.host, bug_reference.path, bug_reference.https, bug_reference.auth_user, bug_reference.auth_password, bug_reference.bz_user, bug_reference.bz_password, bug_reference.use_git_credential)
         bug = Bug(server)
         bug._load(bug_reference.id, attachmentdata)
 
@@ -1445,9 +1482,10 @@ class Bug(object):
         auth_password = tracker_get_auth_password(tracker)
         bz_user = tracker_get_bz_user(tracker)
         bz_password = tracker_get_bz_password(tracker)
+        use_git_credential = tracker_get_use_git_credential(tracker)
         default_fields = get_default_fields(tracker)
 
-        server = get_bug_server(host, path, https, auth_user, auth_password, bz_user, bz_password)
+        server = get_bug_server(host, path, https, auth_user, auth_password, bz_user, bz_password, use_git_credential)
         bug = Bug(server)
         bug._create(product, component, short_desc, comment, default_fields)
 
@@ -2525,8 +2563,11 @@ def do_components(*args):
     path = tracker_get_path(tracker)
     auth_user = tracker_get_auth_user(tracker)
     auth_password = tracker_get_auth_password(tracker)
+    bz_user = tracker_get_bz_user(tracker)
+    bz_password = tracker_get_bz_password(tracker)
+    use_git_credential = tracker_get_use_git_credential(tracker)
 
-    server = get_bug_server(host, path, https, auth_user, auth_password)
+    server = get_bug_server(host, path, https, auth_user, auth_password, bz_user, bz_password, use_git_credential)
 
     if len(args) == 1:
         product = args[0]
